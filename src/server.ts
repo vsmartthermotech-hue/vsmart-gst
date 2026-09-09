@@ -69,8 +69,23 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
+      let req = request;
+      if (req && typeof req.url === "string" && !req.url.startsWith("http://") && !req.url.startsWith("https://")) {
+        const host = req.headers?.get?.("x-forwarded-host") || req.headers?.get?.("host") || "localhost";
+        const proto = req.headers?.get?.("x-forwarded-proto") || "https";
+        const fullUrl = `${proto}://${host}${req.url.startsWith("/") ? "" : "/"}${req.url}`;
+        if (typeof Request !== "undefined" && req instanceof Request) {
+          req = new Request(fullUrl, req);
+        } else {
+          try {
+            req = new Request(fullUrl, req as RequestInit);
+          } catch {
+            (req as { url?: string }).url = fullUrl;
+          }
+        }
+      }
       const handler = await getServerEntry();
-      const response = await handler.fetch(request, env, ctx);
+      const response = await handler.fetch(req, env, ctx);
       return await normalizeCatastrophicSsrResponse(response);
     } catch (error) {
       console.error(error);
@@ -78,3 +93,4 @@ export default {
     }
   },
 };
+
